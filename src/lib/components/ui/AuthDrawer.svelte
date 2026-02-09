@@ -25,7 +25,12 @@
 			const res = await fetch(`${API_BASE_URL}/auth/login`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username, password })
+				body: JSON.stringify({
+					username,
+					userid: username, // Alias for systems using userid
+					password,
+					role // Include role in case the backend needs it to distinguish
+				})
 			});
 
 			const data = await res.json();
@@ -41,7 +46,11 @@
 					window.location.href = '/my-home';
 				}
 			} else {
-				loginError = data.message || 'Login failed';
+				if (res.status === 401) {
+					loginError = 'Invalid credentials. Please check your username and password.';
+				} else {
+					loginError = data.message || `Error: ${res.status}`;
+				}
 			}
 		} catch (e) {
 			loginError = 'Network error. Please try again.';
@@ -99,6 +108,24 @@
 					onclick={() => (activeTab = 'register')}
 				>
 					Register
+				</button>
+			</div>
+
+			<!-- Role Selector -->
+			<div class="mb-6 flex gap-2">
+				<button
+					type="button"
+					onclick={() => (role = 'user')}
+					class={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${role === 'user' ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+				>
+					Consumer
+				</button>
+				<button
+					type="button"
+					onclick={() => (role = 'admin')}
+					class={`flex-1 rounded-xl border py-2 text-xs font-bold transition-all ${role === 'admin' ? 'border-blue-200 bg-blue-50 text-blue-600' : 'border-slate-100 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+				>
+					Administrator
 				</button>
 			</div>
 

@@ -10,6 +10,12 @@
 		{ href: '/outages', label: 'Outages', icon: ZapOff },
 		{ href: '/support', label: 'Support', icon: LifeBuoy }
 	];
+
+	function handleLogout() {
+		localStorage.removeItem('token');
+		localStorage.removeItem('user');
+		window.location.href = '/';
+	}
 </script>
 
 <div class="flex min-h-screen bg-slate-50 font-sans">
@@ -64,7 +70,7 @@
 					<span class="truncate text-sm font-bold text-slate-900">John Doe</span>
 					<span class="truncate text-xs text-slate-500">Consumer ID: 8829</span>
 				</div>
-				<button class="text-slate-400 transition-colors hover:text-red-500">
+				<button onclick={handleLogout} class="text-slate-400 transition-colors hover:text-red-500">
 					<LogOut class="h-5 w-5" />
 				</button>
 			</div>

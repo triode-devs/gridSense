@@ -10,7 +10,9 @@
 		Menu,
 		X,
 		LogOut,
-		Hexagon
+		Hexagon,
+		Zap,
+		Network
 	} from 'lucide-svelte';
 	import { page } from '$app/stores';
 
@@ -18,13 +20,23 @@
 
 	const navItems = [
 		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+		{ href: '/transformers', label: 'Transformers', icon: Zap },
 		{ href: '/live-monitoring', label: 'Live Monitoring', icon: Activity },
 		{ href: '/faults', label: 'Faults', icon: AlertTriangle },
 		{ href: '/shutdowns', label: 'Shutdowns', icon: Calendar },
 		{ href: '/topology', label: 'Topology', icon: Hexagon },
+		{ href: '/nodes', label: 'Grid Nodes', icon: Network },
 		{ href: '/consumer', label: 'Consumers', icon: Users },
-		{ href: '/staff', label: 'Staff', icon: Briefcase }
+		{ href: '/staff', label: 'Staff/Users', icon: Briefcase },
+		{ href: '/tariffs', label: 'Tariffs', icon: Zap },
+		{ href: '/system', label: 'System', icon: LayoutDashboard }
 	];
+
+	function handleLogout() {
+		localStorage.removeItem('token');
+		localStorage.removeItem('user');
+		window.location.href = '/';
+	}
 </script>
 
 <div class="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900">
@@ -114,6 +126,7 @@
 					<span class="truncate text-xs text-slate-500">admin@gridsense.com</span>
 				</div>
 				<button
+					onclick={handleLogout}
 					class="rounded-lg p-2 text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-500"
 				>
 					<LogOut class="h-5 w-5" />
