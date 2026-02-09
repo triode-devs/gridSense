@@ -1,1 +1,1 @@
-// place files you want to import through the `$lib` alias in this folder.
+export const API_BASE_URL = "https://gridsense-sv-api.triodedevs.workers.dev";

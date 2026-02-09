@@ -152,9 +152,31 @@
 				path: line.path,
 				geodesic: true,
 				strokeColor: statusColors[line.status] || '#999',
-				strokeOpacity: 1.0,
-				strokeWeight: line.status === 'damaged' ? 4 : 2,
+				strokeOpacity: 0.8,
+				strokeWeight: line.status === 'damaged' ? 4 : 3,
 				map: map
+			});
+
+			// Draw Poles (Vertices)
+			// Skip the first one if we treat it as a main substation source, or keep all
+			line.path.forEach((point, index) => {
+				const isSubstation = index === 0;
+				const isTransformer = index === line.path.length - 1;
+
+				const poleMarker = new google.maps.Marker({
+					position: point,
+					map: map,
+					icon: {
+						path: google.maps.SymbolPath.CIRCLE,
+						scale: isSubstation || isTransformer ? 5 : 3, // Larger for start/end
+						fillColor: isSubstation ? '#3b82f6' : isTransformer ? '#a855f7' : '#64748b',
+						fillOpacity: 1,
+						strokeWeight: 1,
+						strokeColor: '#ffffff'
+					},
+					title: `Pole/Node ${index}`
+				});
+				markers.push(poleMarker);
 			});
 
 			// Add info window on click
