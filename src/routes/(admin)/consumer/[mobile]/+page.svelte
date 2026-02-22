@@ -29,6 +29,19 @@
 	let totalConnections = $derived(ownerConsumers.length);
 </script>
 
+<svelte:head>
+	<title
+		>{ownerInfo
+			? `${ownerInfo.owner} | GridSense Admin`
+			: 'Consumer Profile | GridSense Admin'}</title
+	>
+	<meta
+		name="description"
+		content="Consumer profile with aggregated connections, energy usage, and billing overview."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 {#if !ownerInfo}
 	<div class="flex h-96 flex-col items-center justify-center text-center">
 		<User class="mb-4 h-16 w-16 text-slate-300" />

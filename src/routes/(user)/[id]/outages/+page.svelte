@@ -10,11 +10,14 @@
 		ZapOff,
 		Zap,
 		ShieldCheck,
-		Search
+		Search,
+		RefreshCw
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade, slide } from 'svelte/transition';
+	import { page } from '$app/stores';
 
+	let id = $derived($page.params.id);
 	let connections = $state([]);
 	let isLoading = $state(true);
 	let statuses = $state({});
@@ -22,12 +25,12 @@
 
 	async function fetchConnections() {
 		try {
-			const res = await fetch(`${API_BASE_URL}/users/consumers`, {
+			const res = await fetch(`${API_BASE_URL}/users/consumers?userid=${id}`, {
 				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 			});
 			const data = await res.json();
 			if (data.success) {
-				connections = data.data;
+				connections = data.data || [];
 				connections.forEach((conn) => fetchStatus(conn.consumer_id));
 			}
 		} catch (e) {
@@ -37,17 +40,17 @@
 		}
 	}
 
-	async function fetchStatus(id) {
+	async function fetchStatus(consumerId) {
 		try {
-			const res = await fetch(`${API_BASE_URL}/users/consumers/${id}/status`, {
+			const res = await fetch(`${API_BASE_URL}/users/consumers/${consumerId}/status`, {
 				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 			});
 			const data = await res.json();
 			if (data.success) {
-				statuses[id] = data;
+				statuses[consumerId] = data;
 			}
 		} catch (e) {
-			console.error(`Failed to fetch status for ${id}`);
+			console.error(`Failed to fetch status for ${consumerId}`);
 		}
 	}
 
@@ -62,12 +65,26 @@
 	onMount(fetchConnections);
 </script>
 
+<svelte:head>
+	<title>Grid Status & Outages | GridSense</title>
+	<meta
+		name="description"
+		content="Real-time monitoring of your electricity connection status and local grid outage alerts."
+	/>
+</svelte:head>
+
 <div class="space-y-8">
-	<div>
-		<h1 class="text-3xl font-bold text-slate-900">Grid Status & Outages</h1>
-		<p class="font-medium text-slate-500">
-			Real-time monitoring of your connection and local grid health.
-		</p>
+	<div class="flex items-center justify-between">
+		<div>
+			<h1 class="text-3xl font-bold text-slate-900">Outages & Status</h1>
+			<p class="text-slate-500">Real-time monitoring of your connection and local grid health.</p>
+		</div>
+		<button
+			onclick={fetchConnections}
+			class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50"
+		>
+			<RefreshCw class="h-4 w-4" /> Refresh
+		</button>
 	</div>
 
 	<div
@@ -88,7 +105,7 @@
 		<div class="flex h-[400px] w-full items-center justify-center">
 			<div class="flex flex-col items-center gap-4">
 				<Loader class="h-10 w-10 animate-spin text-emerald-600" />
-				<p class="font-medium text-slate-500">Scanning local grid topology...</p>
+				<p class="animate-pulse font-medium text-slate-500">Scanning local grid topology...</p>
 			</div>
 		</div>
 	{:else}
@@ -181,7 +198,7 @@
 
 	<!-- Global Outage Map Callout -->
 	<div class="group relative overflow-hidden rounded-[2.5rem] bg-slate-900 p-8 shadow-2xl">
-		<div class="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-transparent"></div>
+		<div class="absolute inset-0 bg-linear-to-br from-blue-600/20 to-transparent"></div>
 		<div class="relative flex flex-col items-center justify-between gap-6 md:flex-row">
 			<div class="max-w-md">
 				<h2 class="mb-2 text-2xl font-bold text-white">Local Grid Map</h2>

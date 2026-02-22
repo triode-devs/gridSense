@@ -151,6 +151,15 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Grid Nodes | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Manage poles, junctions, and infrastructure nodes within the distribution grid topology."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>

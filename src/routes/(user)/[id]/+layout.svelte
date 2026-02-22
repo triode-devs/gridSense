@@ -1,50 +1,53 @@
 <script>
 	let { children } = $props();
 	import {
-		LayoutDashboard,
-		Activity,
-		AlertTriangle,
-		Calendar,
-		Users,
-		Briefcase,
+		Home,
+		BarChart2,
+		FileText,
+		ZapOff,
+		LifeBuoy,
+		Zap,
+		LogOut,
 		Menu,
 		X,
-		LogOut,
-		Hexagon,
-		Zap,
-		Network,
-		CreditCard,
-		FileText,
-		Banknote
+		Hexagon
 	} from 'lucide-svelte';
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 
 	let isSidebarOpen = $state(false);
+	let user = $state({ username: 'Consumer', userid: '—' });
 
-	const navItems = [
-		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-		{ href: '/transformers', label: 'Transformers', icon: Zap },
-		{ href: '/live-monitoring', label: 'Live Monitoring', icon: Activity },
-		{ href: '/faults', label: 'Faults', icon: AlertTriangle },
-		{ href: '/shutdowns', label: 'Shutdowns', icon: Calendar },
-		{ href: '/topology', label: 'Topology', icon: Hexagon },
-		{ href: '/nodes', label: 'Grid Nodes', icon: Network },
-		{ href: '/consumer', label: 'Consumers', icon: Users },
-		{ href: '/staff', label: 'Staff/Users', icon: Briefcase },
-		{ href: '/billing', label: 'Billing', icon: Banknote },
-		{ href: '/tariffs', label: 'Tariffs', icon: CreditCard },
-		{ href: '/system', label: 'System', icon: LayoutDashboard }
-	];
+	let id = $derived($page.params.id);
+
+	const navItems = $derived([
+		{ href: `/${id}/my-home`, label: 'My Home', icon: Home },
+		{ href: `/${id}/usage`, label: 'Usage', icon: BarChart2 },
+		{ href: `/${id}/billing`, label: 'Bills', icon: FileText },
+		{ href: `/${id}/outages`, label: 'Outages', icon: ZapOff },
+		{ href: `/${id}/support`, label: 'Support', icon: LifeBuoy }
+	]);
 
 	function handleLogout() {
 		localStorage.removeItem('token');
 		localStorage.removeItem('user');
 		window.location.href = '/';
 	}
+
+	onMount(() => {
+		const storedUser = localStorage.getItem('user');
+		if (storedUser) {
+			try {
+				const parsed = JSON.parse(storedUser);
+				user = parsed.user || parsed;
+			} catch (e) {
+				console.error('Failed to parse user from localStorage');
+			}
+		}
+	});
 </script>
 
 <div class="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900">
-	<!-- Sidebar -->
 	<!-- Mobile Overlay -->
 	{#if isSidebarOpen}
 		<button
@@ -54,22 +57,23 @@
 		></button>
 	{/if}
 
+	<!-- Sidebar -->
 	<aside
 		class={`fixed inset-y-0 left-0 z-50 w-72 transform bg-slate-950 text-white transition-transform duration-300 ease-out lg:static lg:translate-x-0 ${
 			isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
 		} flex flex-col border-r border-slate-800 shadow-2xl`}
 	>
-		<!-- Logo Section -->
+		<!-- Logo -->
 		<div class="flex h-20 items-center gap-3 border-b border-slate-900 bg-slate-950 px-8">
 			<div
-				class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 shadow-lg shadow-blue-500/20"
+				class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 shadow-lg shadow-emerald-500/20"
 			>
-				<Hexagon class="h-5 w-5 text-white" fill="currentColor" />
+				<Zap class="h-5 w-5 text-white" fill="currentColor" />
 			</div>
 			<div class="flex flex-col">
 				<h1 class="text-lg font-bold tracking-wider text-white">GridSense</h1>
-				<span class="text-[10px] font-bold tracking-widest text-blue-500 uppercase"
-					>Admin Portal</span
+				<span class="text-[10px] font-bold tracking-widest text-emerald-400 uppercase"
+					>Consumer Portal</span
 				>
 			</div>
 			<button
@@ -86,14 +90,15 @@
 				Main Menu
 			</div>
 			{#each navItems as item}
-				{@const isActive = $page.url.pathname.startsWith(item.href)}
+				{@const isActive = $page.url.pathname.includes(item.href)}
 				<a
 					href={item.href}
+					onclick={() => (isSidebarOpen = false)}
 					class={`group relative flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm font-medium transition-all duration-200 
                     ${
 											isActive
-												? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40' // Active State
-												: 'text-slate-400 hover:bg-slate-900 hover:text-white' // Inactive State
+												? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40'
+												: 'text-slate-400 hover:bg-slate-900 hover:text-white'
 										}`}
 				>
 					<!-- Active Indicator Bar -->
@@ -118,16 +123,16 @@
 			<div
 				class="flex items-center gap-3 rounded-xl bg-slate-900/50 p-3 transition-colors hover:bg-slate-900"
 			>
-				<div class="h-10 w-10 overflow-hidden rounded-full border-2 border-slate-700">
+				<div class="h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-slate-700">
 					<img
-						src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
-						alt="Admin"
+						src="https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}"
+						alt="User"
 						class="h-full w-full object-cover"
 					/>
 				</div>
-				<div class="flex flex-1 flex-col overflow-hidden">
-					<span class="truncate text-sm font-bold text-white">System Admin</span>
-					<span class="truncate text-xs text-slate-500">admin@gridsense.com</span>
+				<div class="flex min-w-0 flex-1 flex-col">
+					<span class="truncate text-sm font-bold text-white">{user.username}</span>
+					<span class="truncate text-xs text-slate-500">ID: {user.userid}</span>
 				</div>
 				<button
 					onclick={handleLogout}
@@ -152,16 +157,16 @@
 				>
 					<Menu class="h-6 w-6" />
 				</button>
-				<span class="font-bold text-slate-900">GridSense Admin</span>
+				<span class="font-bold text-slate-900">GridSense</span>
 			</div>
 			<div class="h-8 w-8 overflow-hidden rounded-full bg-slate-200">
-				<img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="Profile" />
+				<img src="https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}" alt="Profile" />
 			</div>
 		</header>
 
 		<!-- Main View -->
 		<main class="flex-1 overflow-y-auto scroll-smooth">
-			<div class="animate-in fade-in zoom-in-95 mx-auto max-w-7xl p-4 duration-300 lg:p-8">
+			<div class="animate-in fade-in zoom-in-95 mx-auto max-w-5xl p-4 duration-300 lg:p-8">
 				{@render children()}
 			</div>
 		</main>

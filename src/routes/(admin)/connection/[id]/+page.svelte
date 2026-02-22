@@ -88,6 +88,19 @@
 	});
 </script>
 
+<svelte:head>
+	<title
+		>{consumer
+			? `Connection ${consumer.id} | GridSense Admin`
+			: 'Connection Details | GridSense Admin'}</title
+	>
+	<meta
+		name="description"
+		content="Grid connection details with monthly usage charts, billing history, and consumer information."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 {#if !consumer}
 	<div class="flex h-96 flex-col items-center justify-center text-center">
 		<h2 class="text-xl font-bold text-slate-900">Consumer Not Found</h2>

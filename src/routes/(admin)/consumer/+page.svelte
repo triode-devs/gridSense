@@ -41,7 +41,6 @@
 		consumer_name: '',
 		address: '',
 		latitude: '',
-		latitude: '',
 		longitude: '',
 		type: 'consumer'
 	});
@@ -105,6 +104,40 @@
 		}
 	}
 
+	// Only show the selected transformer + its nodes on the map (not all transformers)
+	let mapNodes = $derived.by(() => {
+		if (!newConsumer.transformer_id) {
+			// No transformer selected — show all transformers as reference
+			return transformers.map((t) => ({
+				id: t.transformer_id,
+				type: 'transformer',
+				lat: t.latitude,
+				lng: t.longitude
+			}));
+		}
+		// Transformer selected — show just that transformer + its poles/nodes
+		const selected = transformers.find((t) => t.transformer_id === newConsumer.transformer_id);
+		const transformerNode = selected
+			? [
+					{
+						id: selected.transformer_id,
+						type: 'transformer',
+						lat: selected.latitude,
+						lng: selected.longitude
+					}
+				]
+			: [];
+		const poleNodes = availableNodes.map((n) => ({
+			id: n.node_id,
+			type: n.type,
+			lat: n.latitude,
+			lng: n.longitude,
+			parentId: n.parent_node_id || newConsumer.transformer_id
+		}));
+		return [...transformerNode, ...poleNodes];
+	});
+
+	// When transformer changes: fetch its nodes and update map center (flyTo handled by GridMap)
 	$effect(() => {
 		if (newConsumer.transformer_id) {
 			fetchNodesForTransformer(newConsumer.transformer_id);
@@ -113,27 +146,13 @@
 		}
 	});
 
+	// When parent node changes: pan to it
 	$effect(() => {
 		if (newConsumer.parent_node_id) {
 			const n = availableNodes.find((n) => n.node_id === newConsumer.parent_node_id);
 			if (n) currentMapCenter = { lat: n.latitude, lng: n.longitude };
 		}
 	});
-
-	let mapNodes = $derived([
-		...transformers.map((t) => ({
-			id: t.transformer_id,
-			type: 'transformer',
-			lat: t.latitude,
-			lng: t.longitude
-		})),
-		...availableNodes.map((n) => ({
-			id: n.node_id,
-			type: n.type,
-			lat: n.latitude,
-			lng: n.longitude
-		}))
-	]);
 
 	async function fetchData() {
 		isLoading = true;
@@ -218,13 +237,23 @@
 
 	onMount(fetchData);
 
+	// Only re-fetch consumer list when search term or transformer filter changes
 	$effect(() => {
-		const debounce = setTimeout(() => {
-			fetchData();
-		}, 300);
+		const _search = searchTerm;
+		const _tf = selectedTransformer;
+		const debounce = setTimeout(() => fetchData(), 300);
 		return () => clearTimeout(debounce);
 	});
 </script>
+
+<svelte:head>
+	<title>Consumer Management | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Register new consumer connections, manage access control, and view all grid consumers."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
 
 <div class="space-y-6">
 	<!-- Header -->
@@ -585,7 +614,7 @@
 									: null}
 							/>
 							<div
-								class="pointer-events-none absolute right-0 bottom-4 left-0 z-[1000] flex justify-center"
+								class="pointer-events-none absolute right-0 bottom-4 left-0 z-1000 flex justify-center"
 							>
 								<span class="rounded bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-md"
 									>Click map to set location</span

@@ -30,6 +30,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Support Center | GridSense</title>
+	<meta
+		name="description"
+		content="Get help with your electricity connection or billing. Contact our support team via phone, email, or live chat."
+	/>
+</svelte:head>
+
 <div class="space-y-8">
 	<div class="text-center">
 		<div

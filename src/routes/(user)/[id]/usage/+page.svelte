@@ -15,14 +15,15 @@
 	import { page } from '$app/stores';
 	import { fade, fly } from 'svelte/transition';
 
+	let id = $derived($page.params.id);
 	let usageData = $state(null);
 	let isLoading = $state(true);
-	let consumerId = $state($page.url.searchParams.get('id') || '');
+	let consumerId = $state('');
 	let connections = $state([]);
 
 	async function fetchConnections() {
 		try {
-			const res = await fetch(`${API_BASE_URL}/users/consumers`, {
+			const res = await fetch(`${API_BASE_URL}/users/consumers?userid=${id}`, {
 				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 			});
 			const data = await res.json();
@@ -40,7 +41,8 @@
 		if (!consumerId) return;
 		isLoading = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/users/consumers/${consumerId}/usage`, {
+			// Using the billing endpoint as it provides comprehensive usage history too
+			const res = await fetch(`${API_BASE_URL}/users/billing/${consumerId}`, {
 				headers: {
 					Authorization: `Bearer ${localStorage.getItem('token')}`
 				}
@@ -63,28 +65,38 @@
 	});
 </script>
 
+<svelte:head>
+	<title>Energy Analytics | GridSense</title>
+	<meta
+		name="description"
+		content="Detailed breakdown of your electricity consumption — track monthly usage, lifetime totals, and projected bills."
+	/>
+</svelte:head>
+
 <div class="space-y-8">
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex items-center gap-4">
-			<a
-				href="/my-home"
-				class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
-			>
-				<ArrowLeft class="h-5 w-5" />
-			</a>
-			<div>
-				<h1 class="text-3xl font-bold text-slate-900">Energy Analytics</h1>
-				<p class="font-medium text-slate-500">Detailed breakdown of your power consumption.</p>
-			</div>
+		<div>
+			<h1 class="text-3xl font-bold text-slate-900">Energy Analytics</h1>
+			<p class="text-slate-500">Detailed breakdown of your power consumption.</p>
 		</div>
-		<select
-			bind:value={consumerId}
-			class="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
-		>
-			{#each connections as conn}
-				<option value={conn.consumer_id}>{conn.consumer_name} ({conn.consumer_id})</option>
-			{/each}
-		</select>
+		<div class="flex items-center gap-2">
+			{#if connections.length > 1}
+				<select
+					bind:value={consumerId}
+					class="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+				>
+					{#each connections as conn}
+						<option value={conn.consumer_id}>{conn.consumer_name}</option>
+					{/each}
+				</select>
+			{/if}
+			<button
+				onclick={fetchConnections}
+				class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm transition-all hover:bg-slate-50"
+			>
+				<Download class="h-4 w-4" /> Export CSV
+			</button>
+		</div>
 	</div>
 
 	{#if isLoading}
@@ -109,11 +121,13 @@
 					Current Month
 				</p>
 				<h3 class="text-3xl font-bold text-slate-900">
-					{usageData.current_usage.current_month_kwh}
+					{usageData.consumer.current_month_usage || 0}
 				</h3>
 				<span class="text-xs font-bold text-slate-500">Total kWh</span>
 				<div class="mt-4 flex items-center gap-2 text-xs font-bold text-emerald-600">
-					<TrendingUp class="h-3 w-3" /> Billing Cycle: {usageData.current_usage.billing_month}
+					<TrendingUp class="h-3 w-3" /> Billing Cycle: {new Date().toLocaleString('default', {
+						month: 'long'
+					})}
 				</div>
 			</div>
 
@@ -129,10 +143,10 @@
 					Lifetime Total
 				</p>
 				<h3 class="text-3xl font-bold text-slate-900">
-					{usageData.current_usage.total_lifetime_kwh}
+					{usageData.billing_history?.reduce((acc, h) => acc + h.monthly_usage, 0) || 0}
 				</h3>
 				<span class="text-xs font-bold text-slate-500">Cumulative kWh</span>
-				<p class="mt-4 text-xs font-medium text-slate-500">Since installation</p>
+				<p class="mt-4 text-xs font-medium text-slate-500">Since records began</p>
 			</div>
 
 			<div
@@ -147,10 +161,10 @@
 					Projected Bill
 				</p>
 				<h3 class="text-3xl font-bold text-slate-900">
-					₹{(usageData.current_usage.current_month_kwh * 5.5).toFixed(2)}
+					₹{usageData.estimated_bill || '0.00'}
 				</h3>
-				<span class="text-xs font-bold text-slate-500">Estimated cost</span>
-				<p class="mt-4 text-xs font-medium text-slate-500">Based on active tariff</p>
+				<span class="text-xs font-bold text-slate-500">Current Estimate</span>
+				<p class="mt-4 text-xs font-medium text-slate-500">Based on active tariff slabs</p>
 			</div>
 		</div>
 
@@ -168,7 +182,7 @@
 			</div>
 
 			<div class="space-y-4">
-				{#each usageData.monthly_history as history}
+				{#each usageData.billing_history as history}
 					<div
 						class="group flex items-center justify-between rounded-2xl border border-slate-50 bg-white p-5 shadow-sm transition-all hover:border-emerald-100 hover:shadow-md"
 					>
@@ -189,8 +203,8 @@
 							</div>
 						</div>
 						<div class="text-right">
-							<p class="text-xl font-bold text-slate-900">{history.monthly_kwh} kWh</p>
-							<p class="text-xs font-bold text-emerald-600">Valid</p>
+							<p class="text-xl font-bold text-slate-900">{history.monthly_usage} kWh</p>
+							<p class="text-xs font-bold text-emerald-600">Verified</p>
 						</div>
 					</div>
 				{/each}

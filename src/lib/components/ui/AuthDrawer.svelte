@@ -47,7 +47,8 @@
 					if (data.data && data.data.token) {
 						localStorage.setItem('token', data.data.token);
 						localStorage.setItem('user', JSON.stringify(data.data.user));
-						window.location.href = data.data.user.role === 'admin' ? '/dashboard' : '/my-home';
+						window.location.href =
+							data.data.user.role === 'admin' ? '/dashboard' : `/${data.data.user.userid}/my-home`;
 					} else {
 						// Fallback to login tab if no token returned
 						activeTab = 'login';
@@ -61,7 +62,7 @@
 					if (data.data.user.role === 'admin' || data.data.user.role === 'super_admin') {
 						window.location.href = '/dashboard';
 					} else {
-						window.location.href = '/my-home';
+						window.location.href = `/${data.data.user.userid}/my-home`;
 					}
 				}
 			} else {

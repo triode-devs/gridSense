@@ -59,6 +59,15 @@
 	onMount(fetchHealth);
 </script>
 
+<svelte:head>
+	<title>System Administration | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Monitor platform health, API status, and manage full data exports for the GridSense system."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="space-y-8">
 	<div class="flex items-center justify-between">
 		<div>

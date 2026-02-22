@@ -31,6 +31,9 @@
 	let selectedMarkerGoogle = null;
 	let google;
 
+	// Cache the Leaflet module after first import — avoids repeated async imports on every node update
+	let leafletL = null;
+
 	// Dark mode style for Google Maps
 	const googleMapStyle = [
 		{ elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
@@ -73,7 +76,9 @@
 	}
 
 	async function initLeafletMap() {
-		const L = await import('leaflet');
+		if (!leafletL) leafletL = await import('leaflet');
+		const L = leafletL;
+
 		leafletMap = L.map(mapContainer, {
 			center: [center.lat, center.lng],
 			zoom: zoom,
@@ -90,6 +95,11 @@
 				onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
 			}
 		});
+
+		// Force recalculate container size — critical when used inside modals/conditionally rendered elements
+		setTimeout(() => {
+			leafletMap.invalidateSize();
+		}, 50);
 
 		renderLeafletMarkers(L);
 		renderSelectedLocationLeaflet(L);
@@ -143,50 +153,95 @@
 		leafletMarkers = [];
 		leafletLines = [];
 
+		// ── Draw lines FIRST so markers render on top ──────────────────────
 		nodes.forEach((node) => {
-			let color = '#64748b'; // default slate (pole)
-			if (node.type === 'transformer')
-				color = '#3b82f6'; // blue
-			else if (node.type === 'junction')
-				color = '#a855f7'; // purple
-			else if (['consumer', 'residential', 'commercial', 'agricultural'].includes(node.type))
-				color = '#f59e0b'; // amber
+			if (!node.parentId) return;
+			const parent = nodes.find((n) => n.id === node.parentId);
+			if (!parent) return;
 
-			const marker = L.circleMarker([node.lat, node.lng], {
-				radius: node.type === 'transformer' ? 8 : 4,
-				fillColor: color,
-				color: '#fff',
-				weight: 1,
-				opacity: 1,
-				fillOpacity: 1
-			}).addTo(leafletMap);
+			// Consumer connection: thinner dashed amber line
+			const isConsumer = ['consumer', 'residential', 'commercial', 'agricultural'].includes(
+				node.type
+			);
 
-			marker.bindPopup(`
-				<div class="p-1 font-sans">
-					<b class="text-slate-900">${node.id}</b><br/>
-					<span class="text-slate-500 text-[10px] uppercase font-bold">${node.type}</span>
-				</div>
-			`);
-			leafletMarkers.push(marker);
-
-			if (node.parentId) {
-				const parent = nodes.find((n) => n.id === node.parentId);
-				if (parent) {
-					const line = L.polyline(
-						[
-							[node.lat, node.lng],
-							[parent.lat, parent.lng]
-						],
-						{
-							color: '#94a3b8',
-							weight: 2,
-							opacity: 0.5,
-							dashArray: '5, 5'
-						}
-					).addTo(leafletMap);
-					leafletLines.push(line);
+			const line = L.polyline(
+				[
+					[node.lat, node.lng],
+					[parent.lat, parent.lng]
+				],
+				{
+					color: isConsumer ? '#fbbf24' : '#38bdf8',
+					weight: isConsumer ? 1.5 : 2.5,
+					opacity: isConsumer ? 0.5 : 0.85,
+					dashArray: isConsumer ? '4 6' : null,
+					lineCap: 'round',
+					lineJoin: 'round'
 				}
+			).addTo(leafletMap);
+			leafletLines.push(line);
+		});
+
+		// ── Draw markers on top ────────────────────────────────────────────
+		nodes.forEach((node) => {
+			let marker;
+
+			if (node.type === 'transformer') {
+				// Glowing electric-blue transformer icon
+				const icon = L.divIcon({
+					className: 'gs-transformer-icon',
+					html: `
+						
+							<div class="gs-tf-core">⚡</div>
+						`,
+					iconSize: [36, 36],
+					iconAnchor: [19, 18]
+				});
+				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 1000 }).addTo(leafletMap);
+			} else if (node.type === 'pole') {
+				// Steel pole dot with white ring
+				const icon = L.divIcon({
+					className: 'gs-pole-icon',
+					html: `<div class="gs-pole-dot"></div>`,
+					iconSize: [16, 16],
+					iconAnchor: [8, 8]
+				});
+				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 500 }).addTo(leafletMap);
+			} else {
+				// Consumer / residential / commercial — amber glow circle
+				marker = L.circleMarker([node.lat, node.lng], {
+					radius: 5,
+					fillColor: '#f59e0b',
+					color: 'rgba(251,191,36,0.4)',
+					weight: 4,
+					opacity: 1,
+					fillOpacity: 1
+				}).addTo(leafletMap);
 			}
+
+			// Hover tooltip for poles + transformers
+			if (node.type === 'pole' || node.type === 'transformer') {
+				marker.bindTooltip(node.id, {
+					permanent: false,
+					direction: 'top',
+					offset: [0, -12],
+					className: 'gs-node-label'
+				});
+			}
+
+			// Click popup for all nodes
+			const typeColor =
+				node.type === 'transformer' ? '#38bdf8' : node.type === 'pole' ? '#94a3b8' : '#f59e0b';
+			marker.bindPopup(
+				`
+				<div style="font-family:system-ui;padding:4px 2px;min-width:120px">
+					<div style="font-weight:700;font-size:13px;color:#f1f5f9">${node.id}</div>
+					<div style="margin-top:4px;display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:${typeColor}22;color:${typeColor}">${node.type}</div>
+				</div>
+			`,
+				{ className: 'gs-popup' }
+			);
+
+			leafletMarkers.push(marker);
 		});
 	}
 
@@ -273,14 +328,31 @@
 		await initLeafletMap();
 	});
 
+	// Re-center map when center prop changes (flyTo avoids full remount)
 	$effect(() => {
-		// Ensure reactivity by reading nodes
+		const lat = center.lat;
+		const lng = center.lng;
+		if (leafletMap && lat && lng) {
+			leafletMap.flyTo([lat, lng], zoom, { duration: 0.6, easeLinearity: 0.5 });
+		}
+	});
+
+	// Re-render markers when nodes or selectedLocation changes — use cached L module
+	$effect(() => {
 		const _nodes = nodes;
+		const _sel = selectedLocation;
 		if (mapProvider === 'osm' && leafletMap) {
-			import('leaflet').then((L) => {
-				if (_nodes) renderLeafletMarkers(L);
-				renderSelectedLocationLeaflet(L);
-			});
+			if (leafletL) {
+				// Use cached module synchronously — no async penalty
+				if (_nodes) renderLeafletMarkers(leafletL);
+				renderSelectedLocationLeaflet(leafletL);
+			} else {
+				import('leaflet').then((L) => {
+					leafletL = L;
+					if (_nodes) renderLeafletMarkers(L);
+					renderSelectedLocationLeaflet(L);
+				});
+			}
 		} else if (mapProvider === 'google' && googleMap) {
 			if (_nodes) renderGoogleMarkers();
 			renderSelectedLocationGoogle();
@@ -334,25 +406,6 @@
 		</div>
 	</div>
 
-	<!-- Bottom Legend -->
-	<div
-		class="absolute bottom-6 left-6 z-10 space-y-2 rounded-2xl border border-slate-800 bg-slate-950/80 p-4 shadow-2xl backdrop-blur-md"
-	>
-		<div class="flex items-center gap-3">
-			<div class="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
-			<span class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Transformer</span
-			>
-		</div>
-		<div class="flex items-center gap-3">
-			<div class="h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]"></div>
-			<span class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Junction</span>
-		</div>
-		<div class="flex items-center gap-3">
-			<div class="h-2 w-2 rounded-full bg-slate-400"></div>
-			<span class="text-[10px] font-bold tracking-widest text-slate-300 uppercase">Pole</span>
-		</div>
-	</div>
-
 	<!-- No API Key Warning for Google -->
 	{#if mapProvider === 'google' && !import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
 		<div
@@ -379,14 +432,111 @@
 </div>
 
 <style>
-	:global(.leaflet-popup-content-wrapper) {
-		background: rgba(15, 23, 42, 0.9);
-		backdrop-filter: blur(8px);
-		border: 1px solid rgba(255, 255, 255, 0.1);
+	/* ── Popup ───────────────────────────────────────────────────────── */
+	:global(.gs-popup .leaflet-popup-content-wrapper) {
+		background: rgba(2, 6, 23, 0.92);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(56, 189, 248, 0.2);
 		color: white;
-		border-radius: 1rem;
+		border-radius: 12px;
+		box-shadow:
+			0 8px 32px rgba(0, 0, 0, 0.5),
+			0 0 0 1px rgba(56, 189, 248, 0.1);
+	}
+	:global(.leaflet-popup-content-wrapper) {
+		background: rgba(2, 6, 23, 0.92);
+		backdrop-filter: blur(12px);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		color: white;
+		border-radius: 12px;
 	}
 	:global(.leaflet-popup-tip) {
-		background: rgba(15, 23, 42, 0.9);
+		background: rgba(2, 6, 23, 0.92);
+	}
+	:global(.leaflet-popup-close-button) {
+		color: #64748b !important;
+	}
+
+	/* ── Hover tooltip label ─────────────────────────────────────────── */
+	:global(.gs-node-label),
+	:global(.pole-label) {
+		background: rgba(2, 6, 23, 0.88);
+		border: 1px solid rgba(56, 189, 248, 0.35);
+		border-radius: 6px;
+		color: #7dd3fc;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		padding: 3px 8px;
+		white-space: nowrap;
+		backdrop-filter: blur(6px);
+		box-shadow:
+			0 2px 12px rgba(0, 0, 0, 0.4),
+			0 0 8px rgba(56, 189, 248, 0.15);
+	}
+	:global(.gs-node-label::before),
+	:global(.pole-label::before) {
+		display: none;
+	}
+
+	/* ── Transformer marker ──────────────────────────────────────────── */
+	:global(.gs-transformer-icon) {
+		background: transparent !important;
+		border: none !important;
+	}
+	:global(.gs-tf-ring) {
+		width: 36px;
+		height: 36px;
+		border-radius: 50%;
+		background: radial-gradient(
+			circle at 50% 50%,
+			rgba(56, 189, 248, 0.25) 0%,
+			rgba(56, 189, 248, 0.05) 70%
+		);
+		border: 2px solid #38bdf8;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-shadow:
+			0 0 0 4px rgba(56, 189, 248, 0.12),
+			0 0 16px rgba(56, 189, 248, 0.5),
+			0 0 32px rgba(56, 189, 248, 0.2);
+		animation: gs-tf-pulse 2.4s ease-in-out infinite;
+	}
+	:global(.gs-tf-core) {
+		font-size: 15px;
+		line-height: 1;
+		filter: drop-shadow(0 0 4px #7dd3fc);
+	}
+	@keyframes gs-tf-pulse {
+		0%,
+		100% {
+			box-shadow:
+				0 0 0 4px rgba(56, 189, 248, 0.12),
+				0 0 16px rgba(56, 189, 248, 0.5),
+				0 0 32px rgba(56, 189, 248, 0.2);
+		}
+		50% {
+			box-shadow:
+				0 0 0 7px rgba(56, 189, 248, 0.06),
+				0 0 24px rgba(56, 189, 248, 0.7),
+				0 0 48px rgba(56, 189, 248, 0.3);
+		}
+	}
+
+	/* ── Pole marker ─────────────────────────────────────────────────── */
+	:global(.gs-pole-icon) {
+		background: transparent !important;
+		border: none !important;
+	}
+	:global(.gs-pole-dot) {
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: #475569;
+		border: 2.5px solid #cbd5e1;
+		box-shadow:
+			0 0 6px rgba(0, 0, 0, 0.6),
+			0 0 0 3px rgba(148, 163, 184, 0.15);
 	}
 </style>

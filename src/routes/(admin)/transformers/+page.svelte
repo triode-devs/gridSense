@@ -1,5 +1,6 @@
 <script>
 	import { API_BASE_URL } from '$lib/index.js';
+	import { goto } from '$app/navigation';
 	import {
 		Zap,
 		MapPin,
@@ -10,7 +11,8 @@
 		Search,
 		Trash2,
 		Edit3,
-		X
+		X,
+		GitBranch
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
@@ -113,6 +115,15 @@
 	onMount(fetchTransformers);
 </script>
 
+<svelte:head>
+	<title>Transformer Directory | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Register, manage, and track all power distribution transformers in the grid network."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>
@@ -197,6 +208,15 @@
 					<div class="mt-4 flex items-center gap-2 text-[10px] font-medium text-slate-400">
 						<MapPin class="h-3.5 w-3.5 text-slate-300" />
 						<span class="truncate">{t.latitude}, {t.longitude}</span>
+					</div>
+
+					<div class="mt-4 border-t border-slate-50 pt-4">
+						<button
+							onclick={() => goto(`/topology/${t.transformer_id}`)}
+							class="flex w-full items-center justify-center gap-2 rounded-xl border border-blue-100 bg-blue-50 py-2.5 text-xs font-bold text-blue-600 transition-all hover:bg-blue-600 hover:text-white"
+						>
+							<GitBranch class="h-3.5 w-3.5" /> View Topology
+						</button>
 					</div>
 				</div>
 			{/each}
@@ -285,7 +305,7 @@
 									: null}
 							/>
 							<div
-								class="pointer-events-none absolute right-0 bottom-4 left-0 z-[1000] flex justify-center"
+								class="pointer-events-none absolute right-0 bottom-4 left-0 z-1000 flex justify-center"
 							>
 								<span class="rounded bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-md"
 									>Click map to set location</span

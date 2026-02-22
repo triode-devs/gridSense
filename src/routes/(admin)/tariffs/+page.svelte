@@ -13,6 +13,9 @@
 	let newTariff = $state({
 		category: '',
 		base_pay: 0,
+		free_units: 0,
+		unit_range_start: 0,
+		unit_range_end: null,
 		rate_per_unit: 0,
 		effective_from: new Date().toISOString().split('T')[0]
 	});
@@ -41,13 +44,19 @@
 		error = '';
 		message = '';
 		try {
+			// Convert empty string/null for unit_range_end to null for API
+			const payload = { ...newTariff };
+			if (payload.unit_range_end === '' || payload.unit_range_end === 0) {
+				payload.unit_range_end = null;
+			}
+
 			const res = await fetch(`${API_BASE_URL}/admin/tariffs`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${localStorage.getItem('token')}`
 				},
-				body: JSON.stringify(newTariff)
+				body: JSON.stringify(payload)
 			});
 			const data = await res.json();
 			if (data.success) {
@@ -56,6 +65,9 @@
 				newTariff = {
 					category: '',
 					base_pay: 0,
+					free_units: 0,
+					unit_range_start: 0,
+					unit_range_end: null,
 					rate_per_unit: 0,
 					effective_from: new Date().toISOString().split('T')[0]
 				};
@@ -71,6 +83,15 @@
 
 	onMount(fetchTariffs);
 </script>
+
+<svelte:head>
+	<title>Tariff Configuration | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Configure electricity pricing categories, base rates, and per-unit tariff schedules."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
 
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
@@ -112,26 +133,71 @@
 				</div>
 				<div class="grid grid-cols-2 gap-4">
 					<div class="space-y-2">
-						<label class="text-xs font-bold text-slate-500 uppercase">Base Pay</label>
+						<label for="base_pay" class="text-xs font-bold text-slate-500 uppercase"
+							>Base Pay (₹)</label
+						>
 						<input
+							id="base_pay"
 							type="number"
 							bind:value={newTariff.base_pay}
 							class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
 						/>
 					</div>
 					<div class="space-y-2">
-						<label class="text-xs font-bold text-slate-500 uppercase">Rate/Unit</label>
+						<label for="free_units" class="text-xs font-bold text-slate-500 uppercase"
+							>Free Units</label
+						>
 						<input
+							id="free_units"
 							type="number"
-							step="0.01"
-							bind:value={newTariff.rate_per_unit}
+							bind:value={newTariff.free_units}
+							class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+						/>
+					</div>
+				</div>
+				<div class="grid grid-cols-2 gap-4">
+					<div class="space-y-2">
+						<label for="range_start" class="text-xs font-bold text-slate-500 uppercase"
+							>Slab Start</label
+						>
+						<input
+							id="range_start"
+							type="number"
+							bind:value={newTariff.unit_range_start}
+							class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+						/>
+					</div>
+					<div class="space-y-2">
+						<label for="range_end" class="text-xs font-bold text-slate-500 uppercase"
+							>Slab End</label
+						>
+						<input
+							id="range_end"
+							type="number"
+							bind:value={newTariff.unit_range_end}
+							placeholder="Max"
 							class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
 						/>
 					</div>
 				</div>
 				<div class="space-y-2">
-					<label class="text-xs font-bold text-slate-500 uppercase">Effective From</label>
+					<label for="rate" class="text-xs font-bold text-slate-500 uppercase"
+						>Rate per Unit (₹)</label
+					>
 					<input
+						id="rate"
+						type="number"
+						step="0.01"
+						bind:value={newTariff.rate_per_unit}
+						class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
+					/>
+				</div>
+				<div class="space-y-2">
+					<label for="effective" class="text-xs font-bold text-slate-500 uppercase"
+						>Effective From</label
+					>
+					<input
+						id="effective"
 						type="date"
 						bind:value={newTariff.effective_from}
 						class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm outline-none focus:border-blue-500"
@@ -156,32 +222,41 @@
 			class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2"
 		>
 			<table class="w-full text-left">
-				<thead class="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
+				<thead class="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
 					<tr>
 						<th class="px-6 py-4">Category</th>
-						<th class="px-6 py-4">Base Pay</th>
-						<th class="px-6 py-4">Rate/Unit</th>
-						<th class="px-6 py-4">Effective From</th>
+						<th class="px-6 py-4 text-center">Base</th>
+						<th class="px-6 py-4 text-center">Free</th>
+						<th class="px-6 py-4 text-center">Range</th>
+						<th class="px-6 py-4 text-center">Rate</th>
+						<th class="px-6 py-4">Effective</th>
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100">
 					{#if isLoading}
 						<tr>
-							<td colspan="4" class="py-12 text-center">
+							<td colspan="6" class="py-12 text-center">
 								<Loader class="mx-auto h-8 w-8 animate-spin text-blue-500" />
 							</td>
 						</tr>
 					{:else if tariffs.length === 0}
 						<tr>
-							<td colspan="4" class="py-12 text-center text-slate-500">No tariffs configured.</td>
+							<td colspan="6" class="py-12 text-center text-slate-500">No tariffs configured.</td>
 						</tr>
 					{:else}
 						{#each tariffs as tariff}
 							<tr class="transition-colors hover:bg-slate-50">
 								<td class="px-6 py-4 font-bold text-slate-900">{tariff.category}</td>
-								<td class="px-6 py-4 font-medium text-slate-600">₹{tariff.base_pay}</td>
-								<td class="px-6 py-4 font-medium text-slate-600">₹{tariff.rate_per_unit}</td>
-								<td class="px-6 py-4 text-sm text-slate-500">{tariff.effective_from}</td>
+								<td class="px-6 py-4 text-center font-medium text-slate-600">₹{tariff.base_pay}</td>
+								<td class="px-6 py-4 text-center font-medium text-slate-600">{tariff.free_units}</td
+								>
+								<td class="px-6 py-4 text-center font-medium text-slate-600">
+									{tariff.unit_range_start} - {tariff.unit_range_end ?? '∞'}
+								</td>
+								<td class="px-6 py-4 text-center font-bold text-blue-600"
+									>₹{tariff.rate_per_unit}</td
+								>
+								<td class="px-6 py-4 text-xs font-bold text-slate-500">{tariff.effective_from}</td>
 							</tr>
 						{/each}
 					{/if}

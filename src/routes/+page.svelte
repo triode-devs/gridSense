@@ -99,7 +99,17 @@
 <svelte:window bind:scrollY on:mousemove={handleMouseMove} />
 
 <svelte:head>
-	<title>GridSense | Open Source Project</title>
+	<title>GridSense | Smart Grid Management System</title>
+	<meta name="description" content="GridSense is an open-source smart grid management system for real-time power monitoring, automated fault detection, and billing — built for modern energy needs." />
+	<meta name="keywords" content="GridSense, smart grid, power monitoring, fault detection, SCADA, IoT, energy management, open source" />
+	<meta name="robots" content="index, follow" />
+	<meta property="og:type" content="website" />
+	<meta property="og:title" content="GridSense | Smart Grid Management System" />
+	<meta property="og:description" content="An open-source IoT solution for real-time power monitoring, fault detection, and automated billing." />
+	<meta property="og:site_name" content="GridSense" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content="GridSense | Smart Grid Management System" />
+	<meta name="twitter:description" content="Open-source smart grid management — real-time monitoring, fault detection, and automated billing." />
 </svelte:head>
 
 <div

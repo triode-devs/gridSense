@@ -77,6 +77,15 @@
 	onMount(fetchUsers);
 </script>
 
+<svelte:head>
+	<title>User Management | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Manage administrative staff accounts, roles, and access permissions."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="space-y-6">
 	<div class="flex items-center justify-between">
 		<div>

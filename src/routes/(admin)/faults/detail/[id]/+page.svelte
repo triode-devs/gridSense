@@ -36,6 +36,15 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{fault ? `Fault ${fault.id} | GridSense Admin` : 'Fault Details | GridSense Admin'}</title>
+	<meta
+		name="description"
+		content="Detailed fault report including transformer status, affected consumers, and connected grid lines."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 {#if !fault}
 	<div class="flex h-96 flex-col items-center justify-center text-center">
 		<h2 class="text-xl font-bold text-slate-900">Fault Not Found</h2>

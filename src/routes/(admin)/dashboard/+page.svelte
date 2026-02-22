@@ -14,7 +14,8 @@
 		Settings,
 		FileText,
 		Database,
-		ShieldCheck
+		ShieldCheck,
+		CreditCard
 	} from 'lucide-svelte';
 
 	let stats = $state(null);
@@ -40,6 +41,15 @@
 
 	onMount(fetchStats);
 </script>
+
+<svelte:head>
+	<title>System Dashboard | GridSense Admin</title>
+	<meta
+		name="description"
+		content="Real-time grid health and system metrics overview. Monitor substations, consumers, faults, and more."
+	/>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
 
 <div class="space-y-8">
 	<div class="flex items-center justify-between">
@@ -239,6 +249,17 @@
 						<Activity class="h-5 w-5" />
 					</div>
 					<span class="text-xs font-bold text-slate-600">Grid Topology</span>
+				</a>
+				<a
+					href="/billing"
+					class="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-transparent bg-slate-50 py-6 transition-all hover:border-amber-100 hover:bg-amber-50"
+				>
+					<div
+						class="rounded-xl bg-amber-100 p-2 text-amber-600 transition-transform group-hover:scale-110"
+					>
+						<CreditCard class="h-5 w-5" />
+					</div>
+					<span class="text-xs font-bold text-slate-600">Billing Overview</span>
 				</a>
 			</div>
 		</div>
