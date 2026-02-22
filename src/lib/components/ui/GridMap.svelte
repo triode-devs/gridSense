@@ -12,8 +12,14 @@
 	 * @property {string} [status]
 	 */
 
-	/** @type {{ nodes: Node[], center: {lat: number, lng: number}, zoom: number }} */
-	let { nodes = [], center = { lat: 12.9716, lng: 77.5946 }, zoom = 15 } = $props();
+	/** @type {{ nodes: Node[], center: {lat: number, lng: number}, zoom: number, onMapClick?: (e: {lat: number, lng: number}) => void, selectedLocation?: {lat: number, lng: number} | null }} */
+	let {
+		nodes = [],
+		center = { lat: 12.9716, lng: 77.5946 },
+		zoom = 15,
+		onMapClick,
+		selectedLocation = null
+	} = $props();
 
 	let mapProvider = $state('osm'); // 'google' | 'osm'
 	let mapContainer;
@@ -21,6 +27,8 @@
 	let leafletMap;
 	let leafletMarkers = [];
 	let googleMarkers = [];
+	let selectedMarkerLeaflet = null;
+	let selectedMarkerGoogle = null;
 	let google;
 
 	// Dark mode style for Google Maps
@@ -54,7 +62,14 @@
 			fullscreenControl: false
 		});
 
+		googleMap.addListener('click', (e) => {
+			if (onMapClick) {
+				onMapClick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+			}
+		});
+
 		renderGoogleMarkers();
+		renderSelectedLocationGoogle();
 	}
 
 	async function initLeafletMap() {
@@ -65,22 +80,78 @@
 			zoomControl: false
 		});
 
-		L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 		}).addTo(leafletMap);
 
+		leafletMap.on('click', (e) => {
+			if (onMapClick) {
+				onMapClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+			}
+		});
+
 		renderLeafletMarkers(L);
+		renderSelectedLocationLeaflet(L);
 	}
+
+	function renderSelectedLocationLeaflet(L) {
+		if (!leafletMap || !L) return;
+		if (selectedMarkerLeaflet) selectedMarkerLeaflet.remove();
+
+		if (selectedLocation && selectedLocation.lat && selectedLocation.lng) {
+			const icon = L.divIcon({
+				className: 'bg-transparent',
+				html: `<div style="width: 24px; height: 24px; background-color: #ef4444; border: 3px solid white; border-radius: 50%; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);"></div>`,
+				iconSize: [24, 24],
+				iconAnchor: [12, 12]
+			});
+			selectedMarkerLeaflet = L.marker([selectedLocation.lat, selectedLocation.lng], {
+				icon
+			}).addTo(leafletMap);
+		}
+	}
+
+	function renderSelectedLocationGoogle() {
+		if (!googleMap || !google) return;
+		if (selectedMarkerGoogle) selectedMarkerGoogle.setMap(null);
+
+		if (selectedLocation && selectedLocation.lat && selectedLocation.lng) {
+			selectedMarkerGoogle = new google.maps.Marker({
+				position: selectedLocation,
+				map: googleMap,
+				icon: {
+					path: google.maps.SymbolPath.CIRCLE,
+					scale: 10,
+					fillColor: '#ef4444',
+					fillOpacity: 1,
+					strokeWeight: 3,
+					strokeColor: '#ffffff'
+				},
+				zIndex: 1000
+			});
+		}
+	}
+
+	let leafletLines = [];
+	let googleLines = [];
 
 	function renderLeafletMarkers(L) {
 		if (!leafletMap || !L) return;
 		leafletMarkers.forEach((m) => m.remove());
+		leafletLines.forEach((l) => l.remove());
 		leafletMarkers = [];
+		leafletLines = [];
 
 		nodes.forEach((node) => {
-			const color =
-				node.type === 'transformer' ? '#3b82f6' : node.type === 'junction' ? '#a855f7' : '#64748b';
+			let color = '#64748b'; // default slate (pole)
+			if (node.type === 'transformer')
+				color = '#3b82f6'; // blue
+			else if (node.type === 'junction')
+				color = '#a855f7'; // purple
+			else if (['consumer', 'residential', 'commercial', 'agricultural'].includes(node.type))
+				color = '#f59e0b'; // amber
+
 			const marker = L.circleMarker([node.lat, node.lng], {
 				radius: node.type === 'transformer' ? 8 : 4,
 				fillColor: color,
@@ -97,17 +168,44 @@
 				</div>
 			`);
 			leafletMarkers.push(marker);
+
+			if (node.parentId) {
+				const parent = nodes.find((n) => n.id === node.parentId);
+				if (parent) {
+					const line = L.polyline(
+						[
+							[node.lat, node.lng],
+							[parent.lat, parent.lng]
+						],
+						{
+							color: '#94a3b8',
+							weight: 2,
+							opacity: 0.5,
+							dashArray: '5, 5'
+						}
+					).addTo(leafletMap);
+					leafletLines.push(line);
+				}
+			}
 		});
 	}
 
 	function renderGoogleMarkers() {
 		if (!googleMap || !google) return;
 		googleMarkers.forEach((m) => m.setMap(null));
+		googleLines.forEach((l) => l.setMap(null));
 		googleMarkers = [];
+		googleLines = [];
 
 		nodes.forEach((node) => {
-			const color =
-				node.type === 'transformer' ? '#3b82f6' : node.type === 'junction' ? '#a855f7' : '#64748b';
+			let color = '#64748b'; // default slate (pole)
+			if (node.type === 'transformer')
+				color = '#3b82f6'; // blue
+			else if (node.type === 'junction')
+				color = '#a855f7'; // purple
+			else if (['consumer', 'residential', 'commercial', 'agricultural'].includes(node.type))
+				color = '#f59e0b'; // amber
+
 			const marker = new google.maps.Marker({
 				position: { lat: node.lat, lng: node.lng },
 				map: googleMap,
@@ -122,6 +220,31 @@
 				title: node.id
 			});
 			googleMarkers.push(marker);
+
+			if (node.parentId) {
+				const parent = nodes.find((n) => n.id === node.parentId);
+				if (parent) {
+					const line = new google.maps.Polyline({
+						path: [
+							{ lat: node.lat, lng: node.lng },
+							{ lat: parent.lat, lng: parent.lng }
+						],
+						geodesic: true,
+						strokeColor: '#94a3b8',
+						strokeOpacity: 0.5,
+						strokeWeight: 2,
+						icons: [
+							{
+								icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 2 },
+								offset: '0',
+								repeat: '10px'
+							}
+						],
+						map: googleMap
+					});
+					googleLines.push(line);
+				}
+			}
 		});
 	}
 
@@ -130,11 +253,13 @@
 		if (googleMap) {
 			googleMap = null;
 			googleMarkers = [];
+			googleLines = [];
 		}
 		if (leafletMap) {
 			leafletMap.remove();
 			leafletMap = null;
 			leafletMarkers = [];
+			leafletLines = [];
 		}
 
 		if (mapProvider === 'google') {
@@ -149,10 +274,16 @@
 	});
 
 	$effect(() => {
-		if (nodes && mapProvider === 'osm' && leafletMap) {
-			import('leaflet').then((L) => renderLeafletMarkers(L));
-		} else if (nodes && mapProvider === 'google' && googleMap) {
-			renderGoogleMarkers();
+		// Ensure reactivity by reading nodes
+		const _nodes = nodes;
+		if (mapProvider === 'osm' && leafletMap) {
+			import('leaflet').then((L) => {
+				if (_nodes) renderLeafletMarkers(L);
+				renderSelectedLocationLeaflet(L);
+			});
+		} else if (mapProvider === 'google' && googleMap) {
+			if (_nodes) renderGoogleMarkers();
+			renderSelectedLocationGoogle();
 		}
 	});
 

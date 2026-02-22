@@ -17,6 +17,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
+	import GridMap from '$lib/components/ui/GridMap.svelte';
 
 	let consumers = $state([]);
 	let transformers = $state([]);
@@ -40,12 +41,15 @@
 		consumer_name: '',
 		address: '',
 		latitude: '',
+		latitude: '',
 		longitude: '',
-		type: 'residential'
+		type: 'consumer'
 	});
 
 	let availableNodes = $state([]);
 	let isNodesLoading = $state(false);
+
+	let currentMapCenter = $state({ lat: 12.9716, lng: 77.5946 });
 
 	async function fetchNodesForTransformer(tid) {
 		if (!tid) return;
@@ -73,7 +77,10 @@
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${localStorage.getItem('token')}`
 				},
-				body: JSON.stringify(newConsumer)
+				body: JSON.stringify({
+					...newConsumer,
+					parent_node_id: newConsumer.parent_node_id || null
+				})
 			});
 			const data = await res.json();
 			if (data.success) {
@@ -88,7 +95,7 @@
 					address: '',
 					latitude: '',
 					longitude: '',
-					type: 'residential'
+					type: 'consumer'
 				};
 			} else {
 				showMessage(data.message || 'Registration failed', 'error');
@@ -101,37 +108,60 @@
 	$effect(() => {
 		if (newConsumer.transformer_id) {
 			fetchNodesForTransformer(newConsumer.transformer_id);
+			const t = transformers.find((t) => t.transformer_id === newConsumer.transformer_id);
+			if (t) currentMapCenter = { lat: t.latitude, lng: t.longitude };
 		}
 	});
+
+	$effect(() => {
+		if (newConsumer.parent_node_id) {
+			const n = availableNodes.find((n) => n.node_id === newConsumer.parent_node_id);
+			if (n) currentMapCenter = { lat: n.latitude, lng: n.longitude };
+		}
+	});
+
+	let mapNodes = $derived([
+		...transformers.map((t) => ({
+			id: t.transformer_id,
+			type: 'transformer',
+			lat: t.latitude,
+			lng: t.longitude
+		})),
+		...availableNodes.map((n) => ({
+			id: n.node_id,
+			type: n.type,
+			lat: n.latitude,
+			lng: n.longitude
+		}))
+	]);
 
 	async function fetchData() {
 		isLoading = true;
 		try {
+			const headers = { Authorization: `Bearer ${localStorage.getItem('token')}` };
 			const query = new URLSearchParams();
 			if (selectedTransformer !== 'all') query.set('transformer_id', selectedTransformer);
 			if (searchTerm) query.set('search', searchTerm);
 
-			const [consRes, transRes, usersRes] = await Promise.all([
-				fetch(`${API_BASE_URL}/admin/consumers?${query.toString()}`, {
-					headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-				}),
-				fetch(`${API_BASE_URL}/transformer`, {
-					headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-				}),
-				fetch(`${API_BASE_URL}/admin/users`, {
-					headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-				})
-			]);
+			// Fetch each resource independently to prevent total failure
+			const consPromise = fetch(`${API_BASE_URL}/admin/consumers?${query.toString()}`, { headers })
+				.then((r) => r.json())
+				.then((d) => (d.success ? (consumers = d.data) : []))
+				.catch((e) => console.error('Consumers fetch failed', e));
 
-			const consData = await consRes.json();
-			const transData = await transRes.json();
-			const usersData = await usersRes.json();
+			const transPromise = fetch(`${API_BASE_URL}/transformer`, { headers })
+				.then((r) => r.json())
+				.then((d) => (d.success ? (transformers = d.data) : []))
+				.catch((e) => console.error('Transformers fetch failed', e));
 
-			if (consData.success) consumers = consData.data;
-			if (transData.success) transformers = transData.data;
-			if (usersData.success) users = usersData.data;
+			const usersPromise = fetch(`${API_BASE_URL}/admin/users`, { headers })
+				.then((r) => r.json())
+				.then((d) => (d.success ? (users = d.data) : []))
+				.catch((e) => console.error('Users fetch failed', e));
+
+			await Promise.allSettled([consPromise, transPromise, usersPromise]);
 		} catch (e) {
-			console.error('Failed to fetch consumer data');
+			console.error('Failed to fetch data');
 		} finally {
 			isLoading = false;
 		}
@@ -394,7 +424,7 @@
 			in:fade
 		>
 			<div
-				class="custom-scrollbar max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl transition-all sm:p-10"
+				class="custom-scrollbar max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl transition-all sm:p-10"
 				in:scale={{ start: 0.95 }}
 			>
 				<div class="mb-8 flex items-center justify-between">
@@ -419,131 +449,149 @@
 					</button>
 				</div>
 
-				<div class="grid gap-6 md:grid-cols-2">
-					<div class="space-y-2 md:col-span-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Map to User Account</label
-						>
-						<select
-							bind:value={newConsumer.userid}
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						>
-							<option value="" disabled selected>Select User to map account...</option>
-							{#each users as user}
-								<option value={user.userid}>{user.username} ({user.role})</option>
-							{/each}
-						</select>
-					</div>
-
-					<!-- Name -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Consumer Name</label
-						>
-						<input
-							type="text"
-							bind:value={newConsumer.consumer_name}
-							placeholder="Full Name"
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						/>
-					</div>
-
-					<!-- Type -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Connection Type</label
-						>
-						<select
-							bind:value={newConsumer.type}
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						>
-							<option value="residential">Residential</option>
-							<option value="commercial">Commercial</option>
-							<option value="industrial">Industrial</option>
-							<option value="agricultural">Agricultural</option>
-						</select>
-					</div>
-
-					<!-- Transformer -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Target Transformer</label
-						>
-						<select
-							bind:value={newConsumer.transformer_id}
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						>
-							<option value="" disabled selected>Select Transformer...</option>
-							{#each transformers as t}
-								<option value={t.transformer_id}
-									>{t.transformer_id} ({t.location_description})</option
-								>
-							{/each}
-						</select>
-					</div>
-
-					<!-- Parent Node -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Parent Grid Node</label
-						>
-						<div class="relative">
-							<select
-								bind:value={newConsumer.parent_node_id}
-								disabled={!newConsumer.transformer_id || isNodesLoading}
-								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10 disabled:opacity-50"
+				<div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+					<div class="space-y-4">
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Map to User Account</label
 							>
-								{#if isNodesLoading}
-									<option>Loading nodes...</option>
-								{:else}
-									<option value="" disabled selected>Select Parent Node...</option>
-									{#each availableNodes as node}
-										<option value={node.node_id}>{node.node_id} ({node.type})</option>
-									{/each}
-								{/if}
+							<select
+								bind:value={newConsumer.userid}
+								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+							>
+								<option value="" disabled selected>Select User to map account...</option>
+								{#each users as user}
+									<option value={user.userid}>{user.username} ({user.role})</option>
+								{/each}
 							</select>
+						</div>
+
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Consumer Name</label
+							>
+							<input
+								type="text"
+								bind:value={newConsumer.consumer_name}
+								placeholder="Full Name"
+								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+							/>
+						</div>
+
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Connection Type</label
+							>
+							<select
+								bind:value={newConsumer.type}
+								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+							>
+								<option value="consumer">Residential</option>
+								<option value="commercial">Commercial</option>
+								<option value="agri">Agricultural</option>
+							</select>
+						</div>
+
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Target Transformer</label
+							>
+							<select
+								bind:value={newConsumer.transformer_id}
+								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+							>
+								<option value="" disabled selected>Select Transformer...</option>
+								{#each transformers as t}
+									<option value={t.transformer_id}
+										>{t.transformer_id} ({t.location_description})</option
+									>
+								{/each}
+							</select>
+						</div>
+
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Parent Grid Node</label
+							>
+							<div class="relative">
+								<select
+									bind:value={newConsumer.parent_node_id}
+									disabled={!newConsumer.transformer_id || isNodesLoading}
+									class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-bold text-slate-700 transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10 disabled:opacity-50"
+								>
+									{#if isNodesLoading}
+										<option>Loading nodes...</option>
+									{:else}
+										<option value="" disabled selected>Select Parent Node...</option>
+										{#each availableNodes as node}
+											<option value={node.node_id}>{node.node_id} ({node.type})</option>
+										{/each}
+									{/if}
+								</select>
+							</div>
+						</div>
+
+						<div class="grid grid-cols-2 gap-4">
+							<div class="space-y-2">
+								<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+									>Latitude</label
+								>
+								<input
+									type="number"
+									step="any"
+									bind:value={newConsumer.latitude}
+									placeholder="12.9716"
+									class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+								/>
+							</div>
+							<div class="space-y-2">
+								<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+									>Longitude</label
+								>
+								<input
+									type="number"
+									step="any"
+									bind:value={newConsumer.longitude}
+									placeholder="77.5946"
+									class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+								/>
+							</div>
+						</div>
+
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
+								>Delivery Address</label
+							>
+							<textarea
+								bind:value={newConsumer.address}
+								rows="2"
+								placeholder="Full service address..."
+								class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
+							></textarea>
 						</div>
 					</div>
 
-					<!-- Latitude -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Latitude</label
-						>
-						<input
-							type="number"
-							step="any"
-							bind:value={newConsumer.latitude}
-							placeholder="12.9716"
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						/>
-					</div>
-
-					<!-- Longitude -->
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Longitude</label
-						>
-						<input
-							type="number"
-							step="any"
-							bind:value={newConsumer.longitude}
-							placeholder="77.5946"
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						/>
-					</div>
-
-					<!-- Address -->
-					<div class="space-y-2 md:col-span-2">
-						<label class="px-1 text-[10px] font-bold tracking-widest text-slate-500 uppercase"
-							>Delivery Address</label
-						>
-						<textarea
-							bind:value={newConsumer.address}
-							rows="3"
-							placeholder="Full service address..."
-							class="w-full rounded-2xl border border-slate-100 bg-slate-50 px-5 py-3.5 text-sm font-medium transition-all outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/10"
-						></textarea>
+					<div class="flex h-[600px] flex-col overflow-hidden rounded-2xl border border-slate-200">
+						<div class="relative flex-1">
+							<GridMap
+								nodes={mapNodes}
+								center={currentMapCenter}
+								onMapClick={(e) => {
+									newConsumer.latitude = e.lat;
+									newConsumer.longitude = e.lng;
+								}}
+								selectedLocation={newConsumer.latitude && newConsumer.longitude
+									? { lat: newConsumer.latitude, lng: newConsumer.longitude }
+									: null}
+							/>
+							<div
+								class="pointer-events-none absolute right-0 bottom-4 left-0 z-[1000] flex justify-center"
+							>
+								<span class="rounded bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-md"
+									>Click map to set location</span
+								>
+							</div>
+						</div>
 					</div>
 				</div>
 
@@ -558,7 +606,6 @@
 						onclick={registerConsumer}
 						disabled={!newConsumer.consumer_name ||
 							!newConsumer.transformer_id ||
-							!newConsumer.parent_node_id ||
 							!newConsumer.userid}
 						class="flex-1 rounded-2xl bg-blue-600 py-4 font-bold text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50"
 					>

@@ -21,29 +21,48 @@
 		loginError = '';
 
 		try {
+			const endpoint = activeTab === 'register' ? '/auth/register' : '/auth/login';
+
 			// Use the API_BASE_URL for authentication
-			const res = await fetch(`${API_BASE_URL}/auth/login`, {
+			const res = await fetch(`${API_BASE_URL}${endpoint}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					username,
 					userid: username, // Alias for systems using userid
 					password,
-					role // Include role in case the backend needs it to distinguish
+					role, // Include role in case the backend needs it to distinguish
+					// Additional fields for registration (if backend supports)
+					full_name: activeTab === 'register' ? username : undefined
 				})
 			});
 
 			const data = await res.json();
 
 			if (data.success) {
-				localStorage.setItem('token', data.data.token);
-				localStorage.setItem('user', JSON.stringify(data.data.user));
-
-				// Redirect based on role from response, fallback to local role state if needed
-				if (data.data.user.role === 'admin' || data.data.user.role === 'super_admin') {
-					window.location.href = '/dashboard';
+				// For registration, we might get a token directly or need to login
+				// Assuming standard flow: register returns token or success message
+				if (activeTab === 'register') {
+					// Auto-login or just notify
+					if (data.data && data.data.token) {
+						localStorage.setItem('token', data.data.token);
+						localStorage.setItem('user', JSON.stringify(data.data.user));
+						window.location.href = data.data.user.role === 'admin' ? '/dashboard' : '/my-home';
+					} else {
+						// Fallback to login tab if no token returned
+						activeTab = 'login';
+						loginError = 'Registration successful! Please login.';
+					}
 				} else {
-					window.location.href = '/my-home';
+					localStorage.setItem('token', data.data.token);
+					localStorage.setItem('user', JSON.stringify(data.data.user));
+
+					// Redirect based on role from response, fallback to local role state if needed
+					if (data.data.user.role === 'admin' || data.data.user.role === 'super_admin') {
+						window.location.href = '/dashboard';
+					} else {
+						window.location.href = '/my-home';
+					}
 				}
 			} else {
 				if (res.status === 401) {

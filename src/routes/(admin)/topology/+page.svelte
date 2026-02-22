@@ -20,6 +20,8 @@
 	let selectedTransformerId = $state('');
 	let topologyData = $state(null);
 	let isLoading = $state(false);
+	let consumers = $state([]);
+	let consumersCount = $state(0);
 
 	async function fetchTransformers() {
 		try {
@@ -43,15 +45,32 @@
 		if (!selectedTransformerId) return;
 		isLoading = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/transformer-mapping/${selectedTransformerId}`, {
-				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-			});
-			const data = await res.json();
-			if (data.success) {
-				topologyData = data.data;
+			// Fetch Topology (Infrastructure)
+			const resTopo = await fetch(
+				`${API_BASE_URL}/api/transformer-mapping/${selectedTransformerId}`,
+				{
+					headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+				}
+			);
+			const dataTopo = await resTopo.json();
+			if (dataTopo.success) {
+				topologyData = dataTopo.data;
+			}
+
+			// Fetch Consumers
+			const resCons = await fetch(
+				`${API_BASE_URL}/admin/consumers?transformer_id=${selectedTransformerId}&limit=1000`,
+				{
+					headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+				}
+			);
+			const dataCons = await resCons.json();
+			if (dataCons.success) {
+				consumers = dataCons.data;
+				consumersCount = consumers.length;
 			}
 		} catch (e) {
-			console.error('Failed to fetch topology mapping');
+			console.error('Failed to fetch topology data');
 		} finally {
 			isLoading = false;
 		}
@@ -63,20 +82,43 @@
 		if (selectedTransformerId) fetchTopology();
 	});
 
-	const mapNodes = $derived(
-		topologyData?.mapping?.features?.map((f) => ({
+	const mapNodes = $derived.by(() => {
+		const infrastructure = (topologyData?.mapping?.features || []).map((f) => ({
 			id: f.properties.id,
 			type: f.properties.type,
-			lat: f.geometry.coordinates[1],
-			lng: f.geometry.coordinates[0]
-		})) || []
-	);
+			lat: Number(f.geometry.coordinates[1]),
+			lng: Number(f.geometry.coordinates[0]),
+			parentId: f.properties.parent_node_id
+		}));
 
-	const mapCenter = $derived(
-		mapNodes.length > 0
-			? { lat: mapNodes[0].lat, lng: mapNodes[0].lng }
-			: { lat: 12.9716, lng: 77.5946 }
-	);
+		// Ensure Transformer itself is a node (Root)
+		if (topologyData?.latitude && topologyData?.longitude) {
+			const exists = infrastructure.find((n) => n.id === topologyData.transformer_id);
+			if (!exists) {
+				infrastructure.unshift({
+					id: topologyData.transformer_id,
+					type: 'transformer',
+					lat: Number(topologyData.latitude),
+					lng: Number(topologyData.longitude)
+				});
+			}
+		}
+
+		const consumerNodes = consumers.map((c) => ({
+			id: c.consumer_name || 'Consumer',
+			type: c.type || 'consumer', // residential, commercial, etc.
+			lat: Number(c.latitude),
+			lng: Number(c.longitude),
+			parentId: c.parent_node_id || c.transformer_id // Link to pole or transformer
+		}));
+
+		return [...infrastructure, ...consumerNodes];
+	});
+
+	const mapCenter = $derived.by(() => {
+		const validNode = mapNodes.find((n) => n.lat && n.lng);
+		return validNode ? { lat: validNode.lat, lng: validNode.lng } : { lat: 12.9716, lng: 77.5946 };
+	});
 </script>
 
 <div class="space-y-6">
@@ -121,7 +163,9 @@
 			<div
 				class="group relative min-h-[500px] overflow-hidden rounded-[2.5rem] bg-slate-900 shadow-2xl lg:col-span-2"
 			>
-				<GridMap nodes={mapNodes} center={mapCenter} />
+				{#key selectedTransformerId}
+					<GridMap nodes={mapNodes} center={mapCenter} />
+				{/key}
 			</div>
 
 			<!-- Sidebar Info -->
@@ -157,6 +201,12 @@
 							<span class="text-xs font-bold text-slate-700"
 								>{topologyData?.mapping?.features?.length || 0}</span
 							>
+						</div>
+						<div class="text-right">
+							<p class="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+								Consumers
+							</p>
+							<span class="text-xs font-bold text-slate-700">{consumersCount || 0}</span>
 						</div>
 					</div>
 				</div>

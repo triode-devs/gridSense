@@ -123,16 +123,17 @@
 
 						<div class="flex gap-3">
 							<a
-								href={`/usage?id=${conn.consumer_id}`}
+								href={`/my-home/${conn.consumer_id}`}
 								class="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-slate-900/10 transition-transform hover:bg-slate-800 active:scale-95"
 							>
-								<Activity class="h-4 w-4" /> View Usage
+								<Activity class="h-4 w-4" /> View Details
 							</a>
-							<button
+							<a
+								href={`/my-home/${conn.consumer_id}`}
 								class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200"
 							>
 								<ChevronRight class="h-5 w-5" />
-							</button>
+							</a>
 						</div>
 					</div>
 

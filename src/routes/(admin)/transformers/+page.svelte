@@ -14,6 +14,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
+	import GridMap from '$lib/components/ui/GridMap.svelte';
 
 	let transformers = $state([]);
 	let isLoading = $state(false);
@@ -89,6 +90,25 @@
 				t.transformer_id.toLowerCase().includes(searchTerm.toLowerCase())
 		)
 	);
+
+	let mapNodes = $derived(
+		transformers.map((t) => ({
+			id: t.transformer_id,
+			type: 'transformer',
+			lat: t.latitude,
+			lng: t.longitude
+		}))
+	);
+
+	let currentMapCenter = $state({ lat: 12.9716, lng: 77.5946 });
+
+	$effect(() => {
+		if (newTransformer.latitude && newTransformer.longitude) {
+			currentMapCenter = { lat: newTransformer.latitude, lng: newTransformer.longitude };
+		} else if (transformers.length > 0) {
+			currentMapCenter = { lat: transformers[0].latitude, lng: transformers[0].longitude };
+		}
+	});
 
 	onMount(fetchTransformers);
 </script>
@@ -189,7 +209,7 @@
 			class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
 			in:fade
 		>
-			<div class="w-full max-w-md rounded-2xl bg-white p-8 shadow-2xl" in:scale={{ start: 0.95 }}>
+			<div class="w-full max-w-4xl rounded-2xl bg-white p-8 shadow-2xl" in:scale={{ start: 0.95 }}>
 				<div class="mb-6 flex items-center justify-between">
 					<div class="flex items-center gap-3">
 						<div
@@ -210,44 +230,69 @@
 					</button>
 				</div>
 
-				<div class="space-y-4">
-					<div class="space-y-2">
-						<label class="px-1 text-[10px] font-bold text-slate-500 uppercase"
-							>Location Description</label
+				<div class="grid grid-cols-1 gap-8 md:grid-cols-2">
+					<div class="space-y-4">
+						<div class="space-y-2">
+							<label class="px-1 text-[10px] font-bold text-slate-500 uppercase"
+								>Location Description</label
+							>
+							<input
+								type="text"
+								bind:value={newTransformer.location_description}
+								placeholder="e.g. Oak Ridge Substation"
+								class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20"
+							/>
+						</div>
+						<div class="grid grid-cols-2 gap-4">
+							<div class="space-y-2">
+								<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Latitude</label>
+								<input
+									type="number"
+									step="any"
+									bind:value={newTransformer.latitude}
+									class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+								/>
+							</div>
+							<div class="space-y-2">
+								<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Longitude</label>
+								<input
+									type="number"
+									step="any"
+									bind:value={newTransformer.longitude}
+									class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+								/>
+							</div>
+						</div>
+						<button
+							onclick={createTransformer}
+							class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-blue-700"
 						>
-						<input
-							type="text"
-							bind:value={newTransformer.location_description}
-							placeholder="e.g. Oak Ridge Substation"
-							class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500/20"
-						/>
+							Register Unit
+						</button>
 					</div>
-					<div class="grid grid-cols-2 gap-4">
-						<div class="space-y-2">
-							<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Latitude</label>
-							<input
-								type="number"
-								step="any"
-								bind:value={newTransformer.latitude}
-								class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
+
+					<div class="overflow-hidden rounded-2xl border border-slate-200">
+						<div class="relative h-[300px] w-full">
+							<GridMap
+								nodes={mapNodes}
+								center={currentMapCenter}
+								onMapClick={(e) => {
+									newTransformer.latitude = e.lat;
+									newTransformer.longitude = e.lng;
+								}}
+								selectedLocation={newTransformer.latitude && newTransformer.longitude
+									? { lat: newTransformer.latitude, lng: newTransformer.longitude }
+									: null}
 							/>
-						</div>
-						<div class="space-y-2">
-							<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Longitude</label>
-							<input
-								type="number"
-								step="any"
-								bind:value={newTransformer.longitude}
-								class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/20"
-							/>
+							<div
+								class="pointer-events-none absolute right-0 bottom-4 left-0 z-[1000] flex justify-center"
+							>
+								<span class="rounded bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-md"
+									>Click map to set location</span
+								>
+							</div>
 						</div>
 					</div>
-					<button
-						onclick={createTransformer}
-						class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 py-3.5 font-bold text-white shadow-xl shadow-blue-900/20 transition-all hover:bg-blue-700"
-					>
-						Register Unit
-					</button>
 				</div>
 			</div>
 		</div>

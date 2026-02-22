@@ -13,6 +13,7 @@
 	} from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
+	import GridMap from '$lib/components/ui/GridMap.svelte';
 
 	let nodes = $state([]);
 	let transformers = $state([]);
@@ -111,10 +112,42 @@
 		nodes.filter((n) => n.transformer_id === newNode.transformer_id)
 	);
 
+	let mapNodes = $derived([
+		...transformers.map((t) => ({
+			id: t.transformer_id,
+			type: 'transformer',
+			lat: t.latitude,
+			lng: t.longitude
+		})),
+		...nodes.map((n) => ({
+			id: n.node_id,
+			type: n.type,
+			lat: n.latitude,
+			lng: n.longitude,
+			parentId: n.parent_node_id
+		}))
+	]);
+
+	let currentMapCenter = $state({ lat: 12.9716, lng: 77.5946 });
+
 	onMount(fetchData);
 
 	$effect(() => {
 		if (selectedTransformer) fetchData();
+	});
+
+	$effect(() => {
+		if (newNode.latitude && newNode.longitude) {
+			currentMapCenter = { lat: newNode.latitude, lng: newNode.longitude };
+		} else if (newNode.transformer_id) {
+			const t = transformers.find((t) => t.transformer_id === newNode.transformer_id);
+			if (t) currentMapCenter = { lat: t.latitude, lng: t.longitude };
+		} else if (newNode.parent_node_id) {
+			const n = availableParentNodes.find((n) => n.node_id === newNode.parent_node_id);
+			if (n) currentMapCenter = { lat: n.latitude, lng: n.longitude };
+		} else if (transformers.length > 0) {
+			currentMapCenter = { lat: transformers[0].latitude, lng: transformers[0].longitude };
+		}
 	});
 </script>
 
@@ -157,68 +190,95 @@
 	{#if isAdding}
 		<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl" in:fade>
 			<h2 class="mb-4 text-lg font-bold text-slate-900">Add Grid Node (Pole/Junction)</h2>
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Node ID</label>
-					<input
-						bind:value={newNode.node_id}
-						placeholder="e.g. P-101"
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-					/>
+			<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+				<div class="space-y-4">
+					<div class="space-y-1">
+						<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Node ID</label>
+						<input
+							bind:value={newNode.node_id}
+							placeholder="e.g. P-101"
+							class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+						/>
+					</div>
+					<div class="space-y-1">
+						<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Transformer</label>
+						<select
+							bind:value={newNode.transformer_id}
+							class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
+						>
+							<option value="" disabled selected>Select Source</option>
+							{#each transformers as t}
+								<option value={t.transformer_id}>{t.transformer_id}</option>
+							{/each}
+						</select>
+					</div>
+					<div class="space-y-1">
+						<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Type</label>
+						<select
+							bind:value={newNode.type}
+							class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
+						>
+							<option value="pole">Pole</option>
+							<option value="junction">Junction</option>
+						</select>
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						<div class="space-y-1">
+							<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Latitude</label>
+							<input
+								type="number"
+								step="any"
+								bind:value={newNode.latitude}
+								class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
+							/>
+						</div>
+						<div class="space-y-1">
+							<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Longitude</label>
+							<input
+								type="number"
+								step="any"
+								bind:value={newNode.longitude}
+								class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
+							/>
+						</div>
+					</div>
+					<div class="space-y-1">
+						<label class="px-1 text-[10px] font-bold text-slate-500 uppercase"
+							>Parent Node (Optional)</label
+						>
+						<select
+							bind:value={newNode.parent_node_id}
+							class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
+						>
+							<option value={null}>Root (No Parent)</option>
+							{#each availableParentNodes as n}
+								<option value={n.node_id}>{n.node_id} ({n.type})</option>
+							{/each}
+						</select>
+					</div>
 				</div>
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Transformer</label>
-					<select
-						bind:value={newNode.transformer_id}
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
-					>
-						<option value="" disabled selected>Select Source</option>
-						{#each transformers as t}
-							<option value={t.transformer_id}>{t.transformer_id}</option>
-						{/each}
-					</select>
-				</div>
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Type</label>
-					<select
-						bind:value={newNode.type}
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
-					>
-						<option value="pole">Pole</option>
-						<option value="junction">Junction</option>
-					</select>
-				</div>
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Latitude</label>
-					<input
-						type="number"
-						step="any"
-						bind:value={newNode.latitude}
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
-					/>
-				</div>
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase">Longitude</label>
-					<input
-						type="number"
-						step="any"
-						bind:value={newNode.longitude}
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
-					/>
-				</div>
-				<div class="space-y-1">
-					<label class="px-1 text-[10px] font-bold text-slate-500 uppercase"
-						>Parent Node (Optional)</label
-					>
-					<select
-						bind:value={newNode.parent_node_id}
-						class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:bg-white"
-					>
-						<option value={null}>Root (No Parent)</option>
-						{#each availableParentNodes as n}
-							<option value={n.node_id}>{n.node_id} ({n.type})</option>
-						{/each}
-					</select>
+
+				<div class="overflow-hidden rounded-2xl border border-slate-200">
+					<div class="relative h-[300px] w-full">
+						<GridMap
+							nodes={mapNodes}
+							center={currentMapCenter}
+							onMapClick={(e) => {
+								newNode.latitude = e.lat;
+								newNode.longitude = e.lng;
+							}}
+							selectedLocation={newNode.latitude && newNode.longitude
+								? { lat: newNode.latitude, lng: newNode.longitude }
+								: null}
+						/>
+						<div
+							class="pointer-events-none absolute right-0 bottom-4 left-0 z-[1000] flex justify-center"
+						>
+							<span class="rounded bg-black/50 px-2 py-1 text-xs text-white backdrop-blur-md"
+								>Click map to set location</span
+							>
+						</div>
+					</div>
 				</div>
 			</div>
 			<div class="mt-6 flex justify-end gap-3">
