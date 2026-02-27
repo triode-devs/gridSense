@@ -24,9 +24,9 @@
 	const navItems = [
 		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/transformers', label: 'Transformers', icon: Zap },
-		{ href: '/live-monitoring', label: 'Live Monitoring', icon: Activity },
+		// { href: '/live-monitoring', label: 'Live Monitoring', icon: Activity },
 		{ href: '/faults', label: 'Faults', icon: AlertTriangle },
-		{ href: '/shutdowns', label: 'Shutdowns', icon: Calendar },
+		// { href: '/shutdowns', label: 'Shutdowns', icon: Calendar },
 		{ href: '/topology', label: 'Topology', icon: Hexagon },
 		{ href: '/nodes', label: 'Grid Nodes', icon: Network },
 		{ href: '/consumer', label: 'Consumers', icon: Users },
