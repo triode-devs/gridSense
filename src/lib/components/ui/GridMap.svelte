@@ -12,14 +12,48 @@
 	 * @property {string} [status]
 	 */
 
-	/** @type {{ nodes: Node[], center: {lat: number, lng: number}, zoom: number, onMapClick?: (e: {lat: number, lng: number}) => void, selectedLocation?: {lat: number, lng: number} | null }} */
+	/** @type {{ nodes?: Node[], transformers?: any[], center?: {lat: number, lng: number}, zoom?: number, onMapClick?: (e: {lat: number, lng: number}) => void, selectedLocation?: {lat: number, lng: number} | null, height?: string }} */
 	let {
-		nodes = [],
+		nodes: propNodes = [],
+		transformers = [],
 		center = { lat: 12.9716, lng: 77.5946 },
 		zoom = 15,
 		onMapClick,
-		selectedLocation = null
+		selectedLocation = null,
+		height = '600px'
 	} = $props();
+
+	// Derive nodes from transformers if provided, otherwise use propNodes
+	let nodes = $derived(
+		transformers.length > 0
+			? [
+					...transformers.map((t) => ({
+						id: t.transformer_id || t.id,
+						type: 'transformer',
+						lat: t.latitude || t.lat,
+						lng: t.longitude || t.lng
+					})),
+					...transformers.flatMap((t) =>
+						(t.poles || []).map((p) => ({
+							id: p.node_id || p.id,
+							type: 'pole',
+							lat: p.latitude || p.lat,
+							lng: p.longitude || p.lng,
+							parentId: t.transformer_id || t.id
+						}))
+					),
+					...transformers.flatMap((t) =>
+						(t.consumers || []).map((c) => ({
+							id: c.consumer_id || c.id,
+							type: c.type || 'residential',
+							lat: c.latitude || c.lat,
+							lng: c.longitude || c.lng,
+							parentId: c.parent_node_id // assuming it connects to one of the poles or directly
+						}))
+					)
+				]
+			: propNodes
+	);
 
 	let mapProvider = $state('osm'); // 'google' | 'osm'
 	let mapContainer;
@@ -190,32 +224,44 @@
 				const icon = L.divIcon({
 					className: 'gs-transformer-icon',
 					html: `
-						
 							<div class="gs-tf-core">⚡</div>
 						`,
 					iconSize: [36, 36],
 					iconAnchor: [19, 18]
 				});
 				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 1000 }).addTo(leafletMap);
-			} else if (node.type === 'pole') {
-				// Steel pole dot with white ring
+			} else if (node.type === 'pole' || node.type === 'junction') {
+				// Pole emoji marker
 				const icon = L.divIcon({
-					className: 'gs-pole-icon',
-					html: `<div class="gs-pole-dot"></div>`,
-					iconSize: [16, 16],
-					iconAnchor: [8, 8]
+					className: 'gs-pole-icon-emoji',
+					html: `
+						<div class="gs-emoji-marker gs-pole-marker">
+							<span class="emoji">🗼</span>
+						</div>
+					`,
+					iconSize: [28, 28],
+					iconAnchor: [14, 14]
 				});
 				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 500 }).addTo(leafletMap);
 			} else {
-				// Consumer / residential / commercial — amber glow circle
-				marker = L.circleMarker([node.lat, node.lng], {
-					radius: 5,
-					fillColor: '#f59e0b',
-					color: 'rgba(251,191,36,0.4)',
-					weight: 4,
-					opacity: 1,
-					fillOpacity: 1
-				}).addTo(leafletMap);
+				// Consumer / residential / commercial — emoji based on type
+				const type = node.type?.toLowerCase() || 'residential';
+				let emoji = '🏠'; // default
+				if (type === 'commercial' || type === 'business') emoji = '🏢';
+				if (type === 'agricultural' || type === 'industrial' || type === 'factory') emoji = '🏭';
+				if (type === 'residential' || type === 'consumer') emoji = '🏠';
+
+				const icon = L.divIcon({
+					className: 'gs-consumer-icon-emoji',
+					html: `
+						<div class="gs-emoji-marker gs-consumer-marker">
+							<span class="emoji">${emoji}</span>
+						</div>
+					`,
+					iconSize: [28, 28],
+					iconAnchor: [14, 14]
+				});
+				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 800 }).addTo(leafletMap);
 			}
 
 			// Hover tooltip for poles + transformers
@@ -264,13 +310,16 @@
 			const marker = new google.maps.Marker({
 				position: { lat: node.lat, lng: node.lng },
 				map: googleMap,
+				label: {
+					text: node.type === 'transformer' ? '⚡' : 
+						  (['pole', 'junction'].includes(node.type) ? '🗼' : 
+						  (node.type === 'commercial' ? '🏢' : 
+						  (['agricultural', 'industrial'].includes(node.type) ? '🏭' : '🏠'))),
+					fontSize: node.type === 'transformer' ? '22px' : '19px'
+				},
 				icon: {
 					path: google.maps.SymbolPath.CIRCLE,
-					scale: node.type === 'transformer' ? 8 : 4,
-					fillColor: color,
-					fillOpacity: 1,
-					strokeWeight: 1,
-					strokeColor: '#ffffff'
+					scale: 0, // hide the default circle
 				},
 				title: node.id
 			});
@@ -366,7 +415,7 @@
 
 <div class="group relative h-full w-full overflow-hidden rounded-[2.5rem] bg-slate-900 shadow-2xl">
 	<!-- Map Container -->
-	<div bind:this={mapContainer} class="z-0 h-full w-full"></div>
+	<div bind:this={mapContainer} class="z-0 w-full" style="height: {height};"></div>
 
 	<!-- Controls Overlay -->
 	<div
@@ -524,19 +573,27 @@
 		}
 	}
 
-	/* ── Pole marker ─────────────────────────────────────────────────── */
-	:global(.gs-pole-icon) {
-		background: transparent !important;
-		border: none !important;
+	/* ── Emoji Markers ───────────────────────────────────────────────── */
+	:global(.gs-emoji-marker) {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		user-select: none;
+		transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+		filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
 	}
-	:global(.gs-pole-dot) {
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		background: #475569;
-		border: 2.5px solid #cbd5e1;
-		box-shadow:
-			0 0 6px rgba(0, 0, 0, 0.6),
-			0 0 0 3px rgba(148, 163, 184, 0.15);
+	:global(.gs-emoji-marker:hover) {
+		transform: scale(1.4);
+		z-index: 1000 !important;
+	}
+	:global(.gs-emoji-marker .emoji) {
+		font-size: 20px;
+		line-height: 1;
+	}
+	:global(.gs-pole-marker .emoji) {
+		font-size: 19px;
+	}
+	:global(.gs-consumer-marker .emoji) {
+		font-size: 20px;
 	}
 </style>

@@ -102,66 +102,50 @@
 
 				if (isTransformer) {
 					const icon = L.divIcon({
-						className: 'bg-transparent',
-						html: `<div style="
-							width:36px;height:36px;border-radius:50%;
-							background:radial-gradient(circle,rgba(56,189,248,.25),rgba(56,189,248,.05));
-							border:2px solid #38bdf8;
-							display:flex;align-items:center;justify-content:center;
-							box-shadow:0 0 0 4px rgba(56,189,248,.12),0 0 16px rgba(56,189,248,.5);
-						">⚡</div>`,
+						className: 'gs-transformer-icon',
+						html: `<div class="gs-tf-core">⚡</div>`,
 						iconSize: [36, 36],
 						iconAnchor: [18, 18]
 					});
 					marker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(leafletMap);
 				} else if (isLCA || (isFault && !isConsumer)) {
-					// Pulsing red LCA / fault pole
-					const size = isLCA ? 22 : 14;
+					// Pulsing emoji / red marker for LCA/Fault
+					const size = isLCA ? 28 : 22;
 					const icon = L.divIcon({
 						className: 'bg-transparent',
-						html: `<div class="gs-fault-pulse" style="
-							width:${size}px;height:${size}px;border-radius:50%;
-							background:${isLCA ? COLOR.lca_node : COLOR.fault_node};
-							border:${isLCA ? '3px' : '2px'} solid white;
-							box-shadow:0 0 0 0 rgba(239,68,68,.6);
-							animation:gs-pulse 1.4s ease-out infinite;
-						"></div>`,
+						html: `<div class="gs-emoji-marker-fault ${isLCA ? 'gs-lca' : ''}" style="
+							width:${size}px;height:${size}px;
+							display:flex;align-items:center;justify-content:center;
+							font-size:${isLCA ? '24px' : '18px'};
+							animation:${isLCA ? 'gs-lca-pulse' : 'gs-fault-pulse'} 1.4s ease-out infinite;
+						">⚠️</div>`,
 						iconSize: [size, size],
 						iconAnchor: [size / 2, size / 2]
 					});
 					marker = L.marker([lat, lng], { icon, zIndexOffset: isLCA ? 2000 : 900 }).addTo(
 						leafletMap
 					);
-				} else if (isConsumer && isFault) {
-					marker = L.circleMarker([lat, lng], {
-						radius: 6,
-						fillColor: COLOR.fault_consumer,
-						color: 'rgba(249,115,22,.4)',
-						weight: 4,
-						opacity: 1,
-						fillOpacity: 1
-					}).addTo(leafletMap);
 				} else if (isConsumer) {
-					marker = L.circleMarker([lat, lng], {
-						radius: 4,
-						fillColor: COLOR.healthy_consumer,
-						color: 'rgba(251,191,36,.35)',
-						weight: 3,
-						opacity: 1,
-						fillOpacity: 1
-					}).addTo(leafletMap);
+					// Consumer emoji based on type
+					let emoji = '🏠';
+					if (props.type === 'commercial') emoji = '🏢';
+					if (props.type === 'agricultural' || props.type === 'industrial') emoji = '🏭';
+					if (isFault) emoji = '🏚️'; // or just use fault indicator
+
+					const icon = L.divIcon({
+						className: 'bg-transparent',
+						html: `<div class="gs-emoji-marker-consumer" style="font-size: 22px; ${isFault ? 'filter: drop-shadow(0 0 4px #ef4444);' : ''}">${emoji}</div>`,
+						iconSize: [28, 28],
+						iconAnchor: [14, 14]
+					});
+					marker = L.marker([lat, lng], { icon, zIndexOffset: 800 }).addTo(leafletMap);
 				} else {
 					// Normal pole
 					const icon = L.divIcon({
 						className: 'bg-transparent',
-						html: `<div style="
-							width:12px;height:12px;border-radius:50%;
-							background:#475569;
-							border:2px solid #cbd5e1;
-							box-shadow:0 0 4px rgba(0,0,0,.5);
-						"></div>`,
-						iconSize: [12, 12],
-						iconAnchor: [6, 6]
+						html: `<div style="font-size: 19px;">🗼</div>`,
+						iconSize: [28, 28],
+						iconAnchor: [14, 14]
 					});
 					marker = L.marker([lat, lng], { icon, zIndexOffset: 500 }).addTo(leafletMap);
 				}
@@ -299,15 +283,29 @@
 	:global(.gs-fault-pulse) {
 		animation: gs-pulse 1.4s ease-out infinite;
 	}
-	@keyframes gs-pulse {
+	@keyframes gs-lca-pulse {
 		0% {
-			box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+			transform: scale(1);
+			filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0.7));
 		}
 		70% {
-			box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+			transform: scale(1.3);
+			filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.5));
 		}
 		100% {
-			box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+			transform: scale(1);
+			filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0));
+		}
+	}
+	@keyframes gs-fault-pulse {
+		0% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.5;
+		}
+		100% {
+			opacity: 1;
 		}
 	}
 

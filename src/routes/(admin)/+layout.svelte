@@ -24,6 +24,7 @@
 	const navItems = [
 		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/transformers', label: 'Transformers', icon: Zap },
+		{ href: '/interactive-view', label: 'Interactive Map', icon: Network },
 		// { href: '/live-monitoring', label: 'Live Monitoring', icon: Activity },
 		{ href: '/faults', label: 'Faults', icon: AlertTriangle },
 		// { href: '/shutdowns', label: 'Shutdowns', icon: Calendar },
