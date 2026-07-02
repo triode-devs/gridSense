@@ -224,10 +224,10 @@
 				const icon = L.divIcon({
 					className: 'gs-transformer-icon',
 					html: `
-							<div class="gs-tf-core">⚡</div>
+							<div class="gs-tf-core" style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 22px;">⚡</div>
 						`,
 					iconSize: [36, 36],
-					iconAnchor: [19, 18]
+					iconAnchor: [18, 18]
 				});
 				marker = L.marker([node.lat, node.lng], { icon, zIndexOffset: 1000 }).addTo(leafletMap);
 			} else if (node.type === 'pole' || node.type === 'junction') {
@@ -235,7 +235,7 @@
 				const icon = L.divIcon({
 					className: 'gs-pole-icon-emoji',
 					html: `
-						<div class="gs-emoji-marker gs-pole-marker">
+						<div class="gs-emoji-marker gs-pole-marker" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
 							<span class="emoji">🗼</span>
 						</div>
 					`,
@@ -254,7 +254,7 @@
 				const icon = L.divIcon({
 					className: 'gs-consumer-icon-emoji',
 					html: `
-						<div class="gs-emoji-marker gs-consumer-marker">
+						<div class="gs-emoji-marker gs-consumer-marker" style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;">
 							<span class="emoji">${emoji}</span>
 						</div>
 					`,
