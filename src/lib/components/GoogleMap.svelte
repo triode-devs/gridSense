@@ -166,13 +166,13 @@
 				const poleMarker = new google.maps.Marker({
 					position: point,
 					map: map,
+					label: {
+						text: isSubstation || isTransformer ? '⚡' : '🗼',
+						fontSize: isSubstation || isTransformer ? '22px' : '19px'
+					},
 					icon: {
 						path: google.maps.SymbolPath.CIRCLE,
-						scale: isSubstation || isTransformer ? 5 : 3, // Larger for start/end
-						fillColor: isSubstation ? '#3b82f6' : isTransformer ? '#a855f7' : '#64748b',
-						fillOpacity: 1,
-						strokeWeight: 1,
-						strokeColor: '#ffffff'
+						scale: 0, // Hide default circle, just show emoji label
 					},
 					title: `Pole/Node ${index}`
 				});
@@ -205,13 +205,13 @@
 					map: map,
 					title: 'Damage Detected!',
 					animation: google.maps.Animation.BOUNCE,
+					label: {
+						text: '⚠️',
+						fontSize: '24px'
+					},
 					icon: {
 						path: google.maps.SymbolPath.CIRCLE,
-						scale: 10,
-						fillColor: '#ef4444',
-						fillOpacity: 1,
-						strokeWeight: 2,
-						strokeColor: 'white'
+						scale: 0
 					}
 				});
 
